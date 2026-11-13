@@ -14,6 +14,7 @@ Dos modos de uso:
 
 import csv
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -38,7 +39,11 @@ def ahora():
 
 
 def revisar(username):
-    """Devuelve: 'activada', 'desactivada', 'bloqueado' o 'desconocido'."""
+    """Devuelve: 'activada', 'desactivada', 'bloqueado' o 'desconocido'.
+
+    Regla de oro: solo dice 'activada' si CONFIRMA el perfil real.
+    Si no esta seguro, dice 'desconocido' (nunca inventa 'activada').
+    """
     url = f"https://www.instagram.com/{username}/"
     req = urllib.request.Request(
         url,
@@ -57,25 +62,42 @@ def revisar(username):
         return "desconocido"
 
     bajo = html.lower()
+    u = username.lower()
 
-    # Senales de "no disponible"
-    if ("isn't available" in bajo
-            or "no esta disponible" in bajo
-            or "no está disponible" in bajo
-            or "page not found" in bajo):
-        return "desactivada"
+    # --- Extraer el og:title (el HTML lo trae aunque entre un bot) ---
+    og = ""
+    m = re.search(r'<meta[^>]*og:title[^>]*>', html, re.I)
+    if m:
+        c = re.search(r'content="([^"]*)"', m.group(0), re.I)
+        if c:
+            og = c.group(1).lower()
 
-    # Senales de perfil real
-    if (f'"username":"{username.lower()}"' in bajo
-            or f"@{username.lower()}" in bajo
-            or ('og:title' in bajo and username.lower() in bajo)):
+    # 1) PERFIL REAL: el og:title de un perfil activo trae el usuario.
+    #    Ej: "Nombre (@0.rcii) * Instagram photos and videos"
+    if u in og and "instagram" in og:
         return "activada"
 
-    # Muro de inicio de sesion: no se puede saber con certeza
-    if "accounts/login" in bajo or "loginform" in bajo:
-        return "desconocido"
+    # 2) NO DISPONIBLE: textos tipicos de cuenta desactivada / eliminada.
+    marcadores_no = [
+        "profile isn't available",
+        "profile isn’t available",
+        "page isn't available",
+        "page isn’t available",
+        "this page isn't available",
+        "the profile may have been removed",
+        "no esta disponible",
+        "no está disponible",
+        "page not found",
+    ]
+    if any(x in bajo for x in marcadores_no):
+        return "desactivada"
 
-    return "activada"
+    # 3) og:title generico (sin el usuario) tambien apunta a no disponible.
+    if og.strip() in ("instagram", "login * instagram", "login • instagram"):
+        return "desactivada"
+
+    # 4) No se pudo confirmar nada (muro de login, pagina rara, etc.)
+    return "desconocido"
 
 
 def ultimo_estado(archivo):
