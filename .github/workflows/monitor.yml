@@ -2,8 +2,8 @@ name: Monitor cuenta Instagram
 
 on:
   schedule:
-    - cron: "*/20 * * * *"   # cada ~20 min (en UTC; a veces se retrasa unos min)
-  workflow_dispatch:          # boton para correrlo a mano cuando quieras
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,8 +15,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Revisar estado de la cuenta
-        env:
-          IG_USER: ${{ vars.IG_USER }}   # pon el usuario en Settings > Variables
         run: python3 monitor_instagram.py --once
 
       - name: Guardar el cambio en el log (si hubo)
