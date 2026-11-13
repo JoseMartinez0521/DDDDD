@@ -1,1 +1,32 @@
+name: Monitor cuenta Instagram
 
+on:
+  schedule:
+    - cron: "*/20 * * * *"   # cada ~20 min (en UTC; a veces se retrasa unos min)
+  workflow_dispatch:          # boton para correrlo a mano cuando quieras
+
+permissions:
+  contents: write
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Revisar estado de la cuenta
+        env:
+          IG_USER: ${{ vars.IG_USER }}   # pon el usuario en Settings > Variables
+        run: python3 monitor_instagram.py --once
+
+      - name: Guardar el cambio en el log (si hubo)
+        run: |
+          if [[ -n "$(git status --porcelain estado_cuenta.csv)" ]]; then
+            git config user.name "monitor-bot"
+            git config user.email "monitor-bot@users.noreply.github.com"
+            git add estado_cuenta.csv
+            git commit -m "estado $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          else
+            echo "Sin cambios que guardar"
+          fi
