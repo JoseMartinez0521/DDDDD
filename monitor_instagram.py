@@ -13,6 +13,7 @@ Dos modos de uso:
 """
 
 import csv
+import json
 import os
 import re
 import sys
@@ -38,12 +39,43 @@ def ahora():
     return datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
+APP_ID = "936619743392459"  # x-ig-app-id publico del sitio web de Instagram
+
+
+def _api(username):
+    """Endpoint JSON de Instagram. Devuelve estado, o None si no concluye."""
+    url = ("https://www.instagram.com/api/v1/users/web_profile_info/"
+           f"?username={username}")
+    req = urllib.request.Request(url, headers={
+        "User-Agent": UA,
+        "x-ig-app-id": APP_ID,
+        "Accept": "application/json",
+        "Accept-Language": "es-MX,es;q=0.9",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            data = json.loads(r.read().decode("utf-8", "ignore"))
+        user = (data.get("data") or {}).get("user")
+        return "activada" if user else "desactivada"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "desactivada"
+        return None   # 401/429/otros: no concluye, pasamos al metodo HTML
+    except Exception:
+        return None
+
+
 def revisar(username):
     """Devuelve: 'activada', 'desactivada', 'bloqueado' o 'desconocido'.
 
     Regla de oro: solo dice 'activada' si CONFIRMA el perfil real.
     Si no esta seguro, dice 'desconocido' (nunca inventa 'activada').
     """
+    # 1) Primero el endpoint JSON (mas confiable). Si no concluye, HTML.
+    v = _api(username)
+    if v is not None:
+        return v
+
     url = f"https://www.instagram.com/{username}/"
     req = urllib.request.Request(
         url,
